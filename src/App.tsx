@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import * as Tone from 'tone'
 import { AMSynth, Analyser, DuoSynth, FMSynth, MetalSynth, MonoSynth, NoiseSynth, PluckSynth, Synth } from 'tone';
@@ -18,6 +18,67 @@ function App() {
   async function handleStart() {
     await Tone.start();
   }
+
+  function handleIncomingMIDIMessage(event: WebMidi.MIDIMessageEvent, inputId: string) {
+    const [n1, n2, n3] = event.data;
+
+    if (n1 >= 0x90 && n1 <= 0x9F) {
+      //note on
+      startNote(n2 - 24) //eventually, also pass n3 velocity
+    }
+    if (n1 >= 0x80 && n1 <= 0x8F) {
+      //note off
+      // startNote(n2 - 24)
+    }
+    console.log("i got a midi message - wahoo.  input id: " + inputId)
+    console.log([n1, n2, n3], event.data)
+  }
+
+  useEffect(() => {
+
+    let access: WebMidi.MIDIAccess | undefined;
+    const listener = handleIncomingMIDIMessage;
+
+    async function setupMIDI() {
+
+      //@ts-ignore //this complains that it is ALWAYS available (always true)
+      if (navigator.requestMIDIAccess) {
+        console.log("YES requestMIDIAccess fn on navigator")
+
+        access = await navigator.requestMIDIAccess();
+
+        // Get lists of available MIDI controllers
+        const inputs = Array.from(access.inputs.values());
+
+        for (let input of inputs) {
+          input.onmidimessage = (ev) => handleIncomingMIDIMessage(ev, input.id)
+        }
+
+
+        const outputs = Array.from(access.outputs.values());
+
+        console.log({ inputs, outputs })
+      } else {
+        console.log("no requestMIDIAccess fn on navigator")
+      }
+    }
+    setupMIDI()
+
+    function unsubscribe() {
+      console.log("unsubscribe")
+      if (access) {
+        console.log("has access, so uninstalling lsiteners")
+        const inputs = Array.from(access.inputs.values());
+        for (let input of inputs) {
+          console.log("for input: ", input.id, " removing listener")
+
+          input.removeEventListener("midimessage", listener as any);
+        }
+      }
+    }
+    return unsubscribe
+  }, []);
+
   function stopAllSequences() {
     Tone.Transport.stop();
     //TODO: sequence needs stopped not just the transport, or else when transport starts, so will seq.
