@@ -10,12 +10,21 @@ function App() {
     useEffect(() => {
         function setupSynthAndOutput() {
             const synth = new Tone.MonoSynth();
-            const chain = createSimplestAudioChain(synth);
+            const node = createSimplestAudioChain(synth);
             setSynthToUse(synth);
-            setGainNode(chain);
+            setGainNode(node);
+            return node;
         }
-        setupSynthAndOutput();
-        //TODO: strictly, we should disconnect and destroy resources when the component unmounts
+        const node = setupSynthAndOutput();
+
+        function disconnectAndTidyUp() {
+            //Disconnect and destroy resources when the component unmounts
+            if (node) {
+                node.gain.rampTo(0, 0.01);
+                node.disconnect();
+            }
+        }
+        return disconnectAndTidyUp;
     }, []);
 
     /** Creates an audio chain connecting the given synth to a gain node and that in turn to the destination.
@@ -24,7 +33,6 @@ function App() {
     function createSimplestAudioChain(synth: Tone.MonoSynth) {
         // our audio chain will be:
         // synth --> gain --> "destination" (where destination connects to speakers / headphones, depending on computer audio)
-
         const newGainNode = new Tone.Gain(0); //like a volume control
         synth.connect(newGainNode); //if we change the synth we'll have to disconnect the previous and connect this one to the gainNode
         newGainNode.gain.rampTo(0.5, 0.1); //fade it in to avoid clicks
@@ -94,7 +102,7 @@ function App() {
     }
     return (
         <div className="App">
-            <h3>🙉 Danger - may be loud noise ⚠️</h3>
+            <h3>🙉 Danger - Remove headphones. May be loud noise ⚠️</h3>
             Experimental audio can be loud and harsh.
             <br />
             <MusicKeyboard />
